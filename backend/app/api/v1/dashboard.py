@@ -6,6 +6,31 @@ from decimal import Decimal, ROUND_HALF_UP
 
 router = APIRouter()
 
+@router.get("/dashboard/properties")
+async def get_dashboard_properties(
+    current_user: dict = Depends(get_current_user)
+) -> Dict[str, Any]:
+
+    tenant_id = getattr(current_user, "tenant_id", "default_tenant") or "default_tenant"
+
+    from app.core.database_pool import DatabasePool
+    from sqlalchemy import text
+
+    db_pool = DatabasePool()
+    await db_pool.initialize()
+
+    if not db_pool.session_factory:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    async with db_pool.get_session() as session:
+        result = await session.execute(
+            text("SELECT id, name FROM properties WHERE tenant_id = :tenant_id ORDER BY id"),
+            {"tenant_id": tenant_id}
+        )
+        rows = result.fetchall()
+
+    return {"properties": [{"id": row.id, "name": row.name} for row in rows]}
+
 @router.get("/dashboard/summary")
 async def get_dashboard_summary(
     property_id: str,
